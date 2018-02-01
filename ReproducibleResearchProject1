@@ -6,7 +6,15 @@ table(is.na(activity$date))
 
 table(is.na(activity$interval))
 
+library(pander)
+
 library(tidyverse)
+
+library(xtable)
+
+library(knitr)
+
+library(gridExtra)
 
 activity_NARemoved <- na.omit(activity)
 
