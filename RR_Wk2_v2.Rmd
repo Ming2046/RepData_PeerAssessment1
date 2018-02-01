@@ -1,0 +1,336 @@
+---
+title: "Reproducible Research Project 1"
+output:
+  html_document:
+    df_print: paged
+    theme: spacelab
+    highlight: pygments
+    number_sections: yes
+  html_notebook: default
+  pdf_document: 
+    highlight: pygments
+    number_sections: yes
+---
+
+This is Coursera Reproducible Research Project Week 2 Peer Review Assignement.
+
+
+```{r, message = FALSE}
+
+library(pander)
+
+library(tidyverse)
+
+library(xtable)
+
+library(knitr)
+
+library(gridExtra)
+
+options(xtable.comment = FALSE)
+```
+
+```{r}
+inline_hook <- function (x) {
+  if (is.numeric(x)) {
+    ## ifelse does a vectorized comparison
+    ## If integer, print without decimal; otherwise print two places
+    res <- ifelse(x == round(x),
+      sprintf("%d", x),
+      sprintf("%.2f", x)
+    )
+    paste(res, collapse = ", ")
+  }
+}
+
+knit_hooks$set(inline = inline_hook)
+
+```
+
+# Loading and Preprocessing Data 
+
+1. load the data
+2. Process/transform the data
+
+```{r}
+activity <- read.csv("activity.csv")
+
+pander(head (activity, 6))
+
+table(is.na(activity$steps))
+
+table(is.na(activity$date))
+
+table(is.na(activity$interval))
+
+```
+
+
+3. remove the missing value 
+
+```{r}
+
+activity_NARemoved <- na.omit(activity)
+
+```
+
+
+# Mean Total Number of Steps Taken per Day
+
+1. calculate the total number of steps per day
+
+```{r}
+DailyStep <- activity_NARemoved %>% group_by(date) %>% 
+    summarise(Daily_Step = sum(steps))
+
+sum(is.na(DailyStep))
+
+pander(head(DailyStep,6))
+
+DailyStep$Daily_Step <- as.numeric(DailyStep$Daily_Step)
+
+```
+
+2. Histogram: the total number of steps taken each day  
+```{r}
+DailyStepHist <- ggplot (DailyStep, aes(Daily_Step)) + 
+    geom_histogram(fill ="blue",binwidth = 1000)+
+    labs(title = "Histogram of the Total Number of Steps Taken Each Day", x = "Daily_Step Missing Values Removed")
+
+DailyStepHist
+```
+
+3. Mean and Median of the total number of steps taken per day
+
+The mean of the total number of steps taken per day with missing value is ``r as.numeric(mean(DailyStep$Daily_Step))``, and 
+
+the median of the total number of streps taken per day with missing value is ``r as.numeric(median(DailyStep$Daily_Step))``.
+
+```{r}
+mean(DailyStep$Daily_Step)
+
+median(DailyStep$Daily_Step)
+```
+
+# The Average Daily Activity Pattern
+
+1. A time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+```{r}
+five_min_steps <- activity_NARemoved %>% group_by(interval) %>% 
+    summarise(StepsPerFiveMin = mean(steps))
+
+five_min_steps_TimeSeries <- ggplot(five_min_steps,aes(interval,StepsPerFiveMin))+
+    geom_line()+ylab("Number of Steps")+xlab("5-Minutes Interval")+
+    ggtitle("Average Number of Steps Taken Every 5 Minutes")
+
+five_min_steps_TimeSeries
+```
+
+2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+The maximum number of steps 
+
+```{r}
+Max_Steps <- five_min_steps[five_min_steps$StepsPerFiveMin == max(five_min_steps$StepsPerFiveMin),]
+
+pander(Max_Steps)
+
+```
+
+# Imputing missing values
+
+1. the total number of missing values in the dataset is ``r sum(is.na(activity$steps))``
+
+```{r total number of missing values}
+sum(is.na(activity$steps))
+
+```
+
+2. Assign mean to the missing values 
+
+Calculate mean within `activity_NARemoved` data frame.
+
+```{r calcualte mean value without missing value}
+AverageByInterval <- activity_NARemoved %>% group_by(interval) %>%
+    summarise(AverageSteps = mean(steps))
+
+pander(head(AverageByInterval,6))
+
+```
+
+Prepare a data frame for missing value only
+
+```{r Missing Value}
+activityMissingValue <- activity %>% filter(is.na(steps)) %>% group_by(interval,date)
+
+pander(head(activityMissingValue))
+
+```
+
+Assign mean values to the missing value using `merge function`
+```{r}
+AssignMissingValue <- merge(activityMissingValue, AverageByInterval, by="interval")
+
+pander(head(AssignMissingValue,3))
+
+
+
+```
+
+```{r}
+AssignMissingValue <- AssignMissingValue [, c(1,3,4)]
+
+pander(head(AssignMissingValue,3))
+
+
+```
+
+All missing values have been imputed using the mean value. 
+
+```{r rename data frame}
+## rename data frame
+
+colnames(AssignMissingValue) = c("interval","date","steps")
+
+pander(head(AssignMissingValue,3))
+
+```
+
+Combine two dataframes
+
+```{r Combine two dataset}
+activity2 <- rbind(activity_NARemoved,AssignMissingValue)
+
+pander(head(activity2,6))
+```
+
+check total observation in the activity2 - missing value filled adn activity- original data set
+
+```{r}
+dim(activity)
+
+dim(activity2)
+```
+
+checking on number of NA
+
+```{r}
+sum(is.na(activity2$steps))
+```
+
+calculate the total steps per day
+
+```{r}
+activityFull <- activity2 %>% group_by(date) %>% summarise(Daily_Step = sum(steps))
+
+pander(head(activityFull,6))
+```
+Mean and Median in the new dataset activity2 - no missing value. The mean after
+missing value filled is ``r mean(activityFull$Daily_Step)``, and the median afer missing values filled is ``r median (activityFull$Daily_Step)``
+
+```{r}
+
+mean(activityFull$Daily_Step)
+
+median (activityFull$Daily_Step)
+
+```
+
+Compare dataset with missing value filled to the dataset with missing value
+
+```{r}
+
+Item <- c("Mean","Median")
+OriginalData <- c(mean(DailyStep$Daily_Step),median(DailyStep$Daily_Step))
+ImputedData <- c(mean(activityFull$Daily_Step),median(activityFull$Daily_Step))
+Compare <- data.frame(Item,OriginalData,ImputedData)
+
+pander(Compare)
+
+```
+
+make a Histogram on the new dataset
+
+```{r}
+DailyStepHistFull <- ggplot (activityFull, aes(x=Daily_Step)) + 
+    geom_histogram(fill ="blue",binwidth = 1000)+
+    labs(title = "Histogram of the Total Number of Steps Taken Each Day", x = "Daily_Step Missing Value Imputed")
+
+DailyStepHistFull
+```
+
+```{r}
+grid.arrange(DailyStepHist,DailyStepHistFull,ncol=2)
+```
+
+# Differences in activity patterns between weekdays and weekends
+
+the dataset with missing values filled in is used for this.The dataset is `activity2`.
+
+add new variable to the `activity2`dataset
+
+```{r}
+activity2$date <- as.Date(activity2$date)
+
+activity2$DayType <- ifelse(
+    weekdays(activity2$date, abbreviate = FALSE) 
+    %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"),
+"Weekdays","Weekend")
+         
+activity2$DayType <- as.factor(activity2$DayType) 
+
+```
+
+check the levels
+
+```{r}
+levels(activity2$DayType)  
+
+```
+
+Review the dataset
+
+```{r}
+pander(head(activity2,6))
+```
+
+Prepare two new dataset
+
+```{r Weedays and Weekend}
+Weekdays <- activity2 %>% filter (DayType == "Weekdays") %>%
+    group_by(interval) %>% summarise(Average = mean(steps))
+
+Weekend <- activity2 %>% filter (DayType == "Weekend") %>%
+    group_by(interval) %>% summarise(Average = mean(steps))
+
+```
+
+Review the two new dataset
+
+```{r}
+pander(head(Weekdays,3))
+
+pander(head(Weekend,3))
+
+```
+
+Create two timeserie 
+
+```{r}
+WeekdaysTimeSerie <- ggplot(Weekdays,aes(interval,Average))+
+    geom_line()+ylab("Number of Steps")+xlab("5-Minutes Interval")+
+    ggtitle("Weekdays")
+
+WeekendTimeSerie <- ggplot(Weekend,aes(interval,Average))+
+    geom_line()+ylab("Number of Steps")+xlab("5-Minutes Interval")+
+    ggtitle("Weekend")
+
+grid.arrange(WeekdaysTimeSerie,WeekendTimeSerie,nrow = 2)
+
+```
+
+
+
+
+
